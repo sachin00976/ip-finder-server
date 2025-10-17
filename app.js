@@ -3,9 +3,11 @@ const os = require('os');
 const axios = require('axios');
 const http = require('http');
 const { WebSocketServer } = require('ws');
-const cors = require('cors');
+const cors = require('cors'); // ✅ Import CORS
 
 const app = express();
+const PORT = 8000;
+
 
 app.use(cors({
   origin: '*',       
@@ -13,26 +15,32 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// We need to handle both standard HTTP requests and WebSocket upgrade requests.
-// Vercel's runtime will pass the request to this exported handler.
+// Create a standard HTTP server with the Express app
 const server = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
 
-let connectedClients = 0; // This will reset on every invocation.
+// Create a WebSocket server and attach it to the HTTP server
+const wss = new WebSocketServer({ server });
 
+let connectedClients = 0;
+
+// WebSocket server logic
 wss.on('connection', (ws) => {
   connectedClients++;
-  console.log(`✅ Client connection event fired. Total clients in this instance: ${connectedClients}`);
+  console.log(`✅ New client connected. Total clients: ${connectedClients}`);
 
-  // This event will likely fire immediately as the function terminates.
+  // Handle client disconnection
   ws.on('close', () => {
     connectedClients--;
-    console.log(`❌ Client disconnected. Total clients in this instance: ${connectedClients}`);
+    console.log(`❌ Client disconnected. Total clients: ${connectedClients}`);
   });
 
   ws.on('error', console.error);
 });
 
+/**
+ * Finds the non-internal IPv4 addresses of the server.
+ * @returns {object} An object containing network interface names and their IPs.
+ */
 function getLocalIpAddresses() {
   const interfaces = os.networkInterfaces();
   const localIps = {};
@@ -47,6 +55,7 @@ function getLocalIpAddresses() {
   return localIps;
 }
 
+// API endpoint to get server IPs and client count
 app.get('/ip', async (req, res) => {
   let publicIp = 'Could not fetch public IP';
   try {
@@ -59,23 +68,15 @@ app.get('/ip', async (req, res) => {
   const serverInfo = {
     publicIp: publicIp,
     localIps: getLocalIpAddresses(),
-    activeWebSocketClients: connectedClients,
+    activeWebSocketClients: connectedClients, // Add the client count here
   };
   
+  console.log('Server info requested:', serverInfo);
   res.json(serverInfo);
 });
 
-// We wrap the server logic in a handler that Vercel can use.
-const handler = (req, res) => {
-  // Pass the request to the Express app
-  server.emit('request', req, res);
-};
-
-server.on('upgrade', (request, socket, head) => {
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit('connection', ws, request);
-  });
+// Start the server
+server.listen(PORT, () => {
+  console.log(`🚀 Server is running on http://localhost:${PORT}`);
+  console.log('Visit http://localhost:3000/ip to see the server info.');
 });
-
-// Export the handler for Vercel
-module.exports = handler;

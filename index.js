@@ -47,7 +47,7 @@ app.post('/upload', (req, res) => {
   // Listen for the 'end' event, which fires when the client closes the stream
   req.on('end', () => {
     // Remove client from the list *for this instance*
-    connectedClients = connectedClients.filter(id => id !== clientId);
+   // connectedClients = connectedClients.filter(id => id !== clientId);
     console.log(`Stream from ${clientId} ended. Total clients on this instance: ${connectedClients.length}`);
     
     console.log(`Total chunks received: ${chunkCount}`);

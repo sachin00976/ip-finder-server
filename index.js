@@ -4,13 +4,14 @@ const cors = require('cors'); // To allow requests from React dev server
 const app = express();
 const port = 881;
 
+let clientCount = 0;
 // Enable CORS for your React app
 app.use(cors({ origin: "*"}));
 
 // This endpoint is for streaming uploads
 app.post('/upload', (req, res) => {
   console.log('Stream upload started...');
-
+  clientCount++;
   let chunkCount = 0;
   let totalBytes = 0;
 
@@ -30,7 +31,7 @@ app.post('/upload', (req, res) => {
     console.log(`Total bytes received: ${totalBytes}`);
 
     // Now that the stream is complete, send a final response
-    res.status(200).send('Stream received successfully!'+`Total chunks received: ${chunkCount}`+`Total bytes received: ${totalBytes}`);
+    res.status(200).send('Stream received successfully!'+`Total chunks received: ${chunkCount}`+`Total bytes received: ${totalBytes}+clientCount:${clientCount}`);
   });
 
   // Handle connection errors

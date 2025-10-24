@@ -14,9 +14,7 @@ let connectedClients = [];
 // Enable CORS for your React app
 app.use(cors({ origin: "*"}));
 
-// ---
-// Your new route to get the client list
-// ---
+
 app.get('/clients', (req, res) => {
   console.log('GET /clients request received');
   res.status(200).json({
@@ -55,7 +53,9 @@ app.post('/upload', (req, res) => {
     console.log(`Total chunks received: ${chunkCount}`);
     console.log(`Total bytes received: ${totalBytes}`);
 
-    res.status(200).send('Stream received successfully!'+`Total chunks received: ${chunkCount}`+`Total bytes received: ${totalBytes}`);
+    res.status(200).send('Stream received successfully!'+`Total chunks received: ${chunkCount}`+`Total bytes received: ${totalBytes}`+`clientId:${clientId}`
+      +`cLIENTLIST:${connectedClients}`
+    );
   });
 
   // Handle connection errors

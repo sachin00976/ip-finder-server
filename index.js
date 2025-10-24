@@ -30,7 +30,7 @@ app.post('/upload', (req, res) => {
     console.log(`Total bytes received: ${totalBytes}`);
 
     // Now that the stream is complete, send a final response
-    res.status(200).send('Stream received successfully!');
+    res.status(200).send('Stream received successfully!'+`Total chunks received: ${chunkCount}`+`Total bytes received: ${totalBytes}`);
   });
 
   // Handle connection errors

@@ -1,61 +1,46 @@
 const express = require('express');
-const os = require('os');
-const axios = require('axios');
-const http = require('http');
-const { WebSocketServer } = require('ws');
-const cors = require('cors');
+const cors = require('cors'); // To allow requests from React dev server
 
 const app = express();
-// No need for PORT, Vercel assigns it automatically
+const port = 881;
 
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+// Enable CORS for your React app
+app.use(cors({ origin: "*"}));
 
-// The WebSocket code below will not work on Vercel,
-// but it doesn't harm the HTTP endpoint.
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
-let connectedClients = 0;
-wss.on('connection', (ws) => {
-  connectedClients++;
-  ws.on('close', () => { connectedClients--; });
-  ws.on('error', console.error);
+// This endpoint is for streaming uploads
+app.post('/upload', (req, res) => {
+  console.log('Stream upload started...');
+
+  let chunkCount = 0;
+  let totalBytes = 0;
+
+  // Listen for 'data' events on the request stream
+  req.on('data', (chunk) => {
+    chunkCount++;
+    totalBytes += chunk.length;
+    // chunk is a Buffer. We convert to string for logging.
+    console.log(`Received chunk #${chunkCount} (${chunk.length} bytes)`);
+    // console.log('Chunk data:', chunk.toString());
+  });
+
+  // Listen for the 'end' event, which fires when the client closes the stream
+  req.on('end', () => {
+    console.log('Stream ended.');
+    console.log(`Total chunks received: ${chunkCount}`);
+    console.log(`Total bytes received: ${totalBytes}`);
+
+    // Now that the stream is complete, send a final response
+    res.status(200).send('Stream received successfully!');
+  });
+
+  // Handle connection errors
+  req.on('error', (err) => {
+    console.error('Request stream error:', err);
+    res.status(500).send('Error during stream.');
+  });
 });
 
-function getLocalIpAddresses() {
-  const interfaces = os.networkInterfaces();
-  const localIps = {};
-  for (const name of Object.keys(interfaces)) {
-    for (const net of interfaces[name]) {
-      if (net.family === 'IPv4' && !net.internal) {
-        localIps[name] = localIps[name] || [];
-        localIps[name].push(net.address);
-      }
-    }
-  }
-  return localIps;
-}
-
-app.get('/ip', async (req, res) => {
-  let publicIp = 'Could not fetch public IP';
-  try {
-    const response = await axios.get('https://api.ipify.org?format=json');
-    publicIp = response.data.ip;
-  } catch (error) {
-    console.error('Error fetching public IP:', error.message);
-  }
-
-  const serverInfo = {
-    publicIp: publicIp,
-    localIps: getLocalIpAddresses(),
-    activeWebSocketClients: connectedClients,
-  };
-  
-  res.json(serverInfo);
+app.listen(port, () => {
+  console.log(`Server listening at http://localhost:${port}`);
 });
-
-// ✅ Export the app for Vercel
-module.exports = app;
+module.exports=app;

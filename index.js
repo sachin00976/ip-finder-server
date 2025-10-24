@@ -61,7 +61,7 @@ app.post('/upload', (req, res) => {
   // Handle connection errors
   req.on('error', (err) => {
     // Remove client from the list *for this instance*
-    connectedClients = connectedClients.filter(id => id !== clientId);
+    //connectedClients = connectedClients.filter(id => id !== clientId);
     console.error('Request stream error:', err);
     console.log(`Stream from ${clientId} errored. Total clients on this instance: ${connectedClients.length}`);
     res.status(500).send('Error during stream.');

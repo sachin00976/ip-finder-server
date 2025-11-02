@@ -55,7 +55,7 @@ app.get('/read', async (req, res) => {
 });
 
 // ----------------------------------------------
-// 🔹 Route: Upload (uses /append and /read via SERVER_URL)
+// 🔹 Route: Upload (calls /append + /read via SERVER_URL)
 // ----------------------------------------------
 app.post('/upload', async (req, res) => {
   const clientId = `client_${Date.now()}`;
@@ -101,6 +101,26 @@ app.post('/upload', async (req, res) => {
       res.status(500).json({ error: 'Error reading clients after upload.' });
     }
   });
+});
+
+// ----------------------------------------------
+// 🔹 Route: Clients (calls /read internally)
+// ----------------------------------------------
+app.get('/clients', async (req, res) => {
+  try {
+    const readUrl = `${SERVER_URL}/read`;
+    const response = await fetch(readUrl);
+    const json = await response.json();
+
+    res.json({
+      message: 'List of connected clients (via /read route)',
+      clients: json.clients || [],
+      count: (json.clients || []).length,
+    });
+  } catch (err) {
+    console.error('❌ Failed to fetch clients via /read:', err);
+    res.status(500).json({ error: 'Failed to get client list.' });
+  }
 });
 
 // ----------------------------------------------

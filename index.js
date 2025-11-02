@@ -1,56 +1,33 @@
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs').promises;
-const fsSync = require('fs'); // for fsync flush
 const path = require('path');
 const os = require('os');
 
 const app = express();
 const port = 881;
-
-// Temporary client list file (resets on restart)
 const CLIENTS_FILE_PATH = path.join(os.tmpdir(), 'connected_clients.txt');
 
 // --- In-process lock to prevent concurrent writes ---
 let fileLock = Promise.resolve();
-
 async function withFileLock(task) {
   const release = fileLock;
   let releaseNext;
   fileLock = new Promise(resolve => (releaseNext = resolve));
   try {
-    await release; // wait for previous task
+    await release;
     return await task();
   } finally {
-    releaseNext(); // allow next task
-  }
-}
-
-// --- Helper: ensure flush ---
-async function writeAndFlush(filePath, data, flags = 'w') {
-  const handle = await fs.open(filePath, flags);
-  try {
-    await handle.writeFile(data, 'utf8');
-    await handle.sync(); // flush changes to disk immediately
-  } finally {
-    await handle.close();
-  }
-}
-
-async function appendAndFlush(filePath, data) {
-  const handle = await fs.open(filePath, 'a');
-  try {
-    await handle.appendFile(data, 'utf8');
-    await handle.sync(); // flush append to disk immediately
-  } finally {
-    await handle.close();
+    releaseNext();
   }
 }
 
 // --- Helper: get all clients ---
 async function getClientsFromFile() {
   try {
-    const data = await fs.readFile(CLIENTS_FILE_PATH, 'utf8');
+    const handle = await fs.open(CLIENTS_FILE_PATH, 'r');
+    const data = await handle.readFile('utf8');
+    await handle.close();
     return data.split('\n').filter(Boolean);
   } catch (error) {
     if (error.code === 'ENOENT') return [];
@@ -63,7 +40,15 @@ async function removeClientFromFile(clientId) {
   return withFileLock(async () => {
     const clients = await getClientsFromFile();
     const updated = clients.filter(id => id !== clientId);
-    await writeAndFlush(CLIENTS_FILE_PATH, updated.join('\n') + '\n', 'w');
+
+    const handle = await fs.open(CLIENTS_FILE_PATH, 'w');
+    try {
+      await handle.writeFile(updated.length ? updated.join('\n') + '\n' : '', 'utf8');
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+
     return updated;
   });
 }
@@ -71,7 +56,13 @@ async function removeClientFromFile(clientId) {
 // --- Helper: add a client ---
 async function addClientToFile(clientId) {
   return withFileLock(async () => {
-    await appendAndFlush(CLIENTS_FILE_PATH, clientId + '\n');
+    const handle = await fs.open(CLIENTS_FILE_PATH, 'a');
+    try {
+      await handle.appendFile(clientId + '\n', 'utf8');
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
   });
 }
 
@@ -80,7 +71,6 @@ app.use(cors({ origin: '*' }));
 
 // --- GET /clients ---
 app.get('/clients', async (req, res) => {
-  console.log('GET /clients request received');
   try {
     const clients = await getClientsFromFile();
     res.status(200).json({
@@ -111,13 +101,10 @@ app.post('/upload', async (req, res) => {
   req.on('data', (chunk) => {
     chunkCount++;
     totalBytes += chunk.length;
-    console.log(`Received chunk #${chunkCount} (${chunk.length} bytes) from ${clientId}`);
   });
 
   req.on('end', async () => {
     try {
-      // Optional: remove client after upload finishes
-      // const clients = await removeClientFromFile(clientId);
       const clients = await getClientsFromFile();
       console.log(`Stream from ${clientId} ended. Active clients: ${clients.length}`);
       res.status(200).json({
@@ -144,11 +131,9 @@ app.post('/upload', async (req, res) => {
   });
 });
 
-// --- Start server ---
 app.listen(port, () => {
   console.log(`✅ Server listening at http://localhost:${port}`);
   console.log(`📄 Client list stored at: ${CLIENTS_FILE_PATH}`);
 });
 
-// Export for Vercel
 module.exports = app;

@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start":"node index.js"
+    "start": "node index.js"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +14,7 @@
     "axios": "^1.12.2",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "selfsigned": "^4.0.0",
     "ws": "^8.18.3"
   }
 }

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs').promises;
+const fsSync = require('fs'); // for fsync flush
 const path = require('path');
 const os = require('os');
 
@@ -10,7 +11,7 @@ const port = 881;
 // Temporary client list file (resets on restart)
 const CLIENTS_FILE_PATH = path.join(os.tmpdir(), 'connected_clients.txt');
 
-// --- Lock mechanism to prevent concurrent write corruption ---
+// --- In-process lock to prevent concurrent writes ---
 let fileLock = Promise.resolve();
 
 async function withFileLock(task) {
@@ -24,9 +25,29 @@ async function withFileLock(task) {
     releaseNext(); // allow next task
   }
 }
-// -------------------------------------------------------------
 
-// Helper: get all clients
+// --- Helper: ensure flush ---
+async function writeAndFlush(filePath, data, flags = 'w') {
+  const handle = await fs.open(filePath, flags);
+  try {
+    await handle.writeFile(data, 'utf8');
+    await handle.sync(); // flush changes to disk immediately
+  } finally {
+    await handle.close();
+  }
+}
+
+async function appendAndFlush(filePath, data) {
+  const handle = await fs.open(filePath, 'a');
+  try {
+    await handle.appendFile(data, 'utf8');
+    await handle.sync(); // flush append to disk immediately
+  } finally {
+    await handle.close();
+  }
+}
+
+// --- Helper: get all clients ---
 async function getClientsFromFile() {
   try {
     const data = await fs.readFile(CLIENTS_FILE_PATH, 'utf8');
@@ -37,24 +58,24 @@ async function getClientsFromFile() {
   }
 }
 
-// Helper: remove one client
+// --- Helper: remove a client ---
 async function removeClientFromFile(clientId) {
   return withFileLock(async () => {
     const clients = await getClientsFromFile();
     const updated = clients.filter(id => id !== clientId);
-    await fs.writeFile(CLIENTS_FILE_PATH, updated.join('\n') + '\n', 'utf8');
+    await writeAndFlush(CLIENTS_FILE_PATH, updated.join('\n') + '\n', 'w');
     return updated;
   });
 }
 
-// Helper: add one client
+// --- Helper: add a client ---
 async function addClientToFile(clientId) {
   return withFileLock(async () => {
-    await fs.appendFile(CLIENTS_FILE_PATH, clientId + '\n', 'utf8');
+    await appendAndFlush(CLIENTS_FILE_PATH, clientId + '\n');
   });
 }
 
-// Enable CORS for React app
+// --- Enable CORS ---
 app.use(cors({ origin: '*' }));
 
 // --- GET /clients ---
@@ -95,8 +116,10 @@ app.post('/upload', async (req, res) => {
 
   req.on('end', async () => {
     try {
-      //const clients = await removeClientFromFile(clientId);
-      console.log(`Stream from ${clientId} ended. Clients left: ${clients.length}`);
+      // Optional: remove client after upload finishes
+      // const clients = await removeClientFromFile(clientId);
+      const clients = await getClientsFromFile();
+      console.log(`Stream from ${clientId} ended. Active clients: ${clients.length}`);
       res.status(200).json({
         message: 'Stream received successfully!',
         clientId,
@@ -113,7 +136,7 @@ app.post('/upload', async (req, res) => {
   req.on('error', async (err) => {
     console.error(`Stream error from ${clientId}:`, err);
     try {
-     // await removeClientFromFile(clientId);
+      await removeClientFromFile(clientId);
     } catch (err2) {
       console.error('Error cleaning up after failed stream:', err2);
     }
@@ -121,7 +144,7 @@ app.post('/upload', async (req, res) => {
   });
 });
 
-// --- Local server start ---
+// --- Start server ---
 app.listen(port, () => {
   console.log(`✅ Server listening at http://localhost:${port}`);
   console.log(`📄 Client list stored at: ${CLIENTS_FILE_PATH}`);

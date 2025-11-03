@@ -11,6 +11,7 @@ const SERVER_URL = process.env.SERVER_URL || `http://localhost:${port}`;
 
 app.use(express.json());
 app.use(cors({ origin: '*' }));
+let clientId;
 
 // Temp file (non-persistent)
 const CLIENTS_FILE_PATH = path.join(os.tmpdir(), 'connected_clients.txt');
@@ -19,7 +20,7 @@ const CLIENTS_FILE_PATH = path.join(os.tmpdir(), 'connected_clients.txt');
 // 🔹 Route: Append data to file
 // ----------------------------------------------
 app.post('/append', async (req, res) => {
-  const { data } = req.body;
+  const { data } = req.body || clientId;
   if (!data) return res.status(400).json({ error: 'Missing "data" field.' });
 
   try {
@@ -58,7 +59,7 @@ app.get('/read', async (req, res) => {
 // 🔹 Route: Upload (calls /append + /read via SERVER_URL)
 // ----------------------------------------------
 app.post('/upload', async (req, res) => {
-  const clientId = `client_${Date.now()}`;
+   clientId = `client_${Date.now()}`;
   let chunkCount = 0;
   let totalBytes = 0;
 

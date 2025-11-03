@@ -22,7 +22,7 @@ const CLIENTS_FILE_PATH = path.join(os.tmpdir(), 'connected_clients.txt');
 app.post('/append', async (req, res) => {
   // const { data } = req.body ;
   const data=clientId;
-  if (!data) return res.status(400).json({ error: 'Missing "data" field.' });
+  if (!data) return res.status(400).json({ error: `Missing "data" field.${data}` });
 
   try {
     const handle = await fs.open(CLIENTS_FILE_PATH, 'a');
